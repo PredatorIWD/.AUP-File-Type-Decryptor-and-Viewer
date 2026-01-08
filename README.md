@@ -8,7 +8,7 @@ More about Dragon Soul and my game file preservation archive for it:
 You can use the decryptor tool online right in the browser:  
 **https://predatoriwd.github.io/.AUP-File-Type-Decryptor-and-Viewer/**
 
-![Tool's Browser GUI](Tool's Browser GUI.jpg)
+![gui](tool-gui.png)
 
 ### Features:
 - Decrypts/decompresses custom packed Dragon Soul .aup files
