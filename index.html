@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>.AUP File Type Decryptor and Viewer</title>
+
+    <script src="/libs/jszip.min.js" defer></script>
+
+    <style>
+        /* =========================================
+           THEMING
+           ========================================= */
+        :root {
+            --bg-body: #e0e0e0;
+            --bg-app: #f5f5f5;
+            --bg-panel: #ffffff;
+            --bg-header: #e9e9e9;
+            --text-main: #333333;
+            --text-dim: #333333;
+            --border: #cccccc;
+            --highlight: #0078d7;
+            --highlight-text: #ffffff;
+            --btn-bg: #f0f0f0;
+            --btn-hover: #e0e0e0;
+            --row-hover: #f0f8ff;
+            --canvas-bg: #2d2d2d;
+            --icon-fill: #555;
+            --shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            --statusbar-height: 24px;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #121212;
+            --bg-app: #1e1e1e;
+            --bg-panel: #252526;
+            --bg-header: #333333;
+            --text-main: #e0e0e0;
+            --text-dim: #e0e0e0;
+            --border: #454545;
+            --highlight: #0078d7;
+            --highlight-text: #ffffff;
+            --btn-bg: #3c3c3c;
+            --btn-hover: #505050;
+            --row-hover: #2a2d2e;
+            --canvas-bg: #111111;
+            --icon-fill: #e0e0e0;
+            --shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg-body: #121212;
+                --bg-app: #1e1e1e;
+                --bg-panel: #252526;
+                --bg-header: #333333;
+                --text-main: #e0e0e0;
+                --text-dim: #e0e0e0;
+                --border: #454545;
+                --highlight: #0078d7;
+                --highlight-text: #ffffff;
+                --btn-bg: #3c3c3c;
+                --btn-hover: #505050;
+                --row-hover: #2a2d2e;
+                --canvas-bg: #111111;
+                --icon-fill: #e0e0e0;
+                --shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        /* =========================================
+           LAYOUT
+           ========================================= */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        #status-bar {
+            height: var(--statusbar-height);
+            background-color: var(--highlight);
+            color: white;
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
+            width: 100%;
+            max-width: 2400px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            max-width: 2400px;
+            margin: 0 auto;
+            background-color: var(--bg-app);
+            box-shadow: var(--shadow);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+        }
+
+        /* LEFT PANEL */
+        #left-panel {
+            width: 400px;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            background-color: var(--bg-panel);
+            height: 100%;
+        }
+
+        .ctrl-row {
+            padding: 6px 10px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 5px 14px;
+            cursor: pointer;
+            background: var(--btn-bg);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            color: var(--text-main);
+            font-size: 12px;
+            transition: background 0.1s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: var(--btn-hover);
+            border-color: #999;
+        }
+
+        button:disabled {
+            color: var(--text-dim);
+            cursor: default;
+            opacity: 0.6;
+        }
+
+        .icon-btn {
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+        }
+
+        .icon-btn:hover {
+            background: var(--btn-hover);
+            border-color: var(--border);
+        }
+
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--icon-fill);
+        }
+
+        .sun-icon {
+            display: none;
+        }
+
+        .moon-icon {
+            display: block;
+        }
+
+        [data-theme="dark"] .sun-icon {
+            display: block;
+        }
+
+        [data-theme="dark"] .moon-icon {
+            display: none;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) .sun-icon {
+                display: block;
+            }
+
+            :root:not([data-theme="light"]) .moon-icon {
+                display: none;
+            }
+        }
+
+        .btn-primary {
+            font-weight: 600;
+            border-color: var(--border);
+        }
+
+        input[type="text"],
+        select {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg-panel);
+            color: var(--text-main);
+            border-radius: 2px;
+        }
+
+        #filter-container {
+            height: 100px;
+            min-height: 80px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            margin: 0 10px;
+            background: var(--bg-app);
+            padding: 5px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 2px;
+        }
+
+        .filter-item {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .filter-item input {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+
+        #file-list-container {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            margin-top: 5px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-panel);
+            position: relative;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            table-layout: fixed;
+        }
+
+        thead {
+            background: var(--bg-header);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        th {
+            border-bottom: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            padding: 6px 4px;
+            text-align: left;
+            cursor: pointer;
+            user-select: none;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        th:hover {
+            background: var(--btn-hover);
+        }
+
+        td {
+            padding: 4px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            color: var(--text-main);
+            user-select: none;
+        }
+
+        tr:hover {
+            background-color: var(--row-hover);
+        }
+
+        tr.selected {
+            background-color: var(--highlight) !important;
+            color: var(--highlight-text) !important;
+        }
+
+        tr.selected td {
+            color: var(--highlight-text);
+        }
+
+        /* RIGHT PANEL */
+        #right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-app);
+            min-width: 0;
+            height: 100%;
+        }
+
+        #top-bar {
+            background-color: var(--bg-header);
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            height: 36px;
+            border-bottom: 1px solid var(--border);
+            gap: 15px;
+            flex-shrink: 0;
+        }
+
+        #file-info {
+            font-weight: bold;
+            font-size: 13px;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #preview-wrapper {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #preview-frame {
+            flex: 1;
+            background: var(--canvas-bg);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* TEXT VIEWER */
+        #text-viewer {
+            width: 100%;
+            height: 100%;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            border: none;
+            resize: none;
+            padding: 10px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: var(--bg-panel);
+            color: var(--text-main);
+            display: none;
+            line-height: 1.4;
+            user-select: text !important;
+            outline: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+            background: var(--canvas-bg);
+            cursor: grab;
+            display: none;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        /* Modal */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #about-modal {
+            background: var(--bg-panel);
+            color: var(--text-main);
+            width: 600px;
+            height: 650px;
+            padding: 0;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: var(--bg-header);
+            padding: 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+        }
+
+        .small-info-text {
+            font-size: 0.8em;
+            color: var(--text-dim);
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .tab-btn.active {
+            border-bottom-color: var(--highlight);
+            background: var(--bg-panel);
+        }
+
+        .close-btn {
+            margin-left: auto;
+            padding: 0 15px;
+            border: none;
+            background: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-main);
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        #folder-input,
+        #compress-input {
+            display: none;
+        }
+
+        .checkbox-label {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .feature-list {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        .feature-list li {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="status-bar">Ready</div>
+
+    <div id="main-container">
+
+        <!-- LEFT PANEL -->
+        <div id="left-panel">
+            <div class="ctrl-row">
+                <button class="icon-btn" onclick="toggleTheme()" title="Toggle Theme">
+                    <svg class="sun-icon" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <path
+                            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                    <svg class="moon-icon" viewBox="0 0 24 24">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+                <button onclick="showAbout()">About Program</button>
+            </div>
+
+            <div class="ctrl-row">
+                <button class="btn-primary" onclick="document.getElementById('folder-input').click()"
+                    style="flex:1;">Load Folder</button>
+                <input type="file" id="folder-input" webkitdirectory directory multiple>
+                <button onclick="exportFiltered()">Export Filtered</button>
+                <button onclick="exportAll()">Export All</button>
+            </div>
+
+            <div class="ctrl-row">
+                <button class="btn-primary" style="flex:1; width: 100%;"
+                    onclick="document.getElementById('compress-input').click()" disabled>
+                    Load files to instantly convert INTO .aup (TO DO)
+                </button>
+                <input type="file" id="compress-input" multiple>
+            </div>
+
+            <div class="ctrl-row">
+                <label style="font-size: 12px; color: var(--text-dim);">Search:</label>
+                <input type="text" id="search-input" placeholder="Filename...">
+            </div>
+
+            <div class="ctrl-row" style="padding-bottom: 2px;">
+                <span style="font-size: 12px; font-weight: bold; margin-right: auto;">Filter Types:</span>
+                <button onclick="filterSet(0)" style="font-size: 10px; padding: 2px 8px;">None</button>
+                <button onclick="filterSet(1)" style="font-size: 10px; padding: 2px 8px;">All</button>
+                <button onclick="filterSet(2)" style="font-size: 10px; padding: 2px 8px;">Invert</button>
+            </div>
+
+            <div id="filter-container"></div>
+            <div style="padding: 4px 10px; font-size: 11px; color: var(--text-dim);" id="file-count">Files: 0 / 0</div>
+
+            <div id="file-list-container" tabindex="0">
+                <table id="file-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 55%" onclick="sortTable('name')">Name <span id="sort-arrow-name"></span>
+                            </th>
+                            <th style="width: 20%" onclick="sortTable('type')">Type <span id="sort-arrow-type"></span>
+                            </th>
+                            <th style="width: 25%" onclick="sortTable('size')">Size (bytes) <span
+                                    id="sort-arrow-size"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="file-list-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div id="right-panel">
+            <div id="top-bar">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 12px; color: var(--text-dim);">Treat as:</span>
+                    <select id="treat-as" onchange="refreshPreview()" style="width: 140px;">
+                        <option value="Auto">Auto</option>
+                        <option value="Text">Text (GB18030)</option>
+                        <option value="HexAscii">Hex + ASCII</option>
+                        <option value="HexOnly">Hex Only</option>
+                        <option value="AsciiOnly">ASCII Only</option>
+                        <option value="Image">Image</option>
+                        <option value="Audio">Audio</option>
+                    </select>
+                </div>
+                <span id="file-info">No file selected</span>
+            </div>
+
+            <div class="ctrl-row" style="background: var(--bg-header); border-bottom: 1px solid var(--border);">
+                <button id="btn-export-single" disabled onclick="exportSingle()">Export This File</button>
+                <div style="border-left: 1px solid var(--border); height: 20px; margin: 0 5px;"></div>
+                <button id="btn-play-audio" style="display: none;" onclick="playAudio()">▶ Play Audio</button>
+                <label id="lbl-autoplay" class="checkbox-label" style="display: none; margin-left: 5px;">
+                    <input type="checkbox" id="check-autoplay"> Auto-Play
+                </label>
+            </div>
+
+            <div id="preview-wrapper">
+                <div id="preview-frame">
+                    <textarea id="text-viewer" readonly></textarea>
+                    <div id="canvas-container">
+                        <canvas id="image-viewer"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal-overlay">
+        <div id="about-modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <button class="tab-btn active" onclick="switchTab('general')">General Info</button>
+                <button class="tab-btn" onclick="switchTab('tech')">Decryption Logic</button>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div id="tab-general" class="tab-content active">
+                <h2 style="margin: 0 0 30px 0;">.AUP File Type Decryptor and Viewer</h2>
+                <p>Fully local, client-side tool for (en/de)crypting / (de)compressing the reverse-engineered file
+                    format for the custom .aup type files, which are used for packing game asset files for the MMORPG
+                    "Dragon Soul" (DragonSoul).</p>
+                <p>More about Dragon Soul and my game file preservation archive for it:<br>
+                    <a
+                        href="https://archive.org/details/Dragon-Soul-DragonSoul-MMORPG-Client">https://archive.org/details/Dragon-Soul-DragonSoul-MMORPG-Client</a>
+                </p>
+                <ul class="feature-list">
+                    <li>Decrypts/decompresses custom packed Dragon Soul .aup files</li>
+                    <li>Supports previewing PNG, JPG, BMP, TGA, DDS, custom game icons, WAV, Chinese encoded text
+                        (GB18030), ASCII, Hex</li>
+                    <li>Batch export with folder structure preservation</li>
+                    <li>Arrow key file list navigation</li>
+                    <li>TO DO: Encrypts/compresses raw files into the .aup format (bit-perfect)</li>
+                </ul>
+                <p class="small-info-text" style="margin-top: 50px;">This is an unofficial fan project not affiliated
+                    with the original developers; all Dragon Soul assets and intellectual property belong to their
+                    respective owners.</p>
+                <p class="small-info-text">Licensed under the MIT License.</p>
+                <p class="small-info-text">Version: 1.0.0</p>
+                <p class="small-info-text">Project source code: <a
+                        href="https://github.com/PredatorIWD/.AUP-File-Type-Decryptor-and-Viewer">github.com/PredatorIWD/.AUP-File-Type-Decryptor-and-Viewer</a>
+                </p>
+            </div>
+            <div id="tab-tech" class="tab-content">
+                <pre style="font-family: Consolas; font-size: 11px; color: var(--text-main); white-space: pre-wrap;">DECRYPTION ALGORITHM (LZSS Variant)
+
+The .aup files use a custom implementation of LZSS (Lempel-Ziv-Storer-Szymanski) compression based on a ring buffer dictionary.
+
+1. HEADER:
+   - First 4 bytes (Little Endian Integer) indicate the uncompressed size.
+
+2. BIT STREAM:
+   - The stream is read bit-by-bit (MSB first).
+   - It maintains a 16384 byte (0x4000) Ring Buffer (History).
+   - Initial Buffer Index: 1
+
+3. COMMANDS:
+   BIT = 1 (LITERAL BIT):
+       - Read next 8 bits as a raw byte.
+       - Append to Output.
+       - Write to Ring Buffer.
+       - Increment Buffer Index (wrapping at 0x3FFF).
+
+   BIT = 0 (MATCH BIT):
+       - Read next 14 bits = Offset (Absolute position in Ring Buffer).
+       - If Offset = 0, Stop (End of File).
+       - Read next 4 bits = Length.
+       - Actual Length = Length + 3.
+       - Iterate [Actual Length] times:
+           - Read byte from Ring Buffer at [(Offset + i) & 0x3FFF].
+           - Append byte to Output.
+           - Write byte to Ring Buffer.
+           - Increment Buffer Index (wrapping at 0x3FFF).</pre>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio-player"></audio>
+
+    <script>
+        // STATE
+        let allFiles = [];
+        let currentDecryptedData = null;
+        let currentFileMeta = null;
+        let activeFilters = new Set();
+        let sortConfig = { col: 'name', dir: 1 };
+        let selectedIndices = new Set();
+        let lastSelectedIndex = -1;
+        let imgState = { scale: 1, panX: 0, panY: 0, isDragging: false, startX: 0, startY: 0, w: 0, h: 0, rawPixels: null, isBitmap: false, bitmap: null };
+
+        // THEME
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            if (!current) {
+                const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            } else {
+                html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+            }
+        }
+
+        // DECRYPTION
+        class BitReader {
+            constructor(u8Array) { this.data = u8Array; this.bytePtr = 0; this.bitMask = 0; this.currentByte = 0; this.eof = false; }
+            readBit() {
+                if (this.bitMask === 0) {
+                    if (this.bytePtr >= this.data.length) { this.eof = true; return 0; }
+                    this.currentByte = this.data[this.bytePtr++]; this.bitMask = 128;
+                }
+                const bit = (this.currentByte & this.bitMask) ? 1 : 0; this.bitMask >>>= 1; return bit;
+            }
+            readBits(c) { let v = 0, m = 1 << (c - 1); while (m > 0) { if (this.readBit()) v |= m; m >>>= 1; } return v; }
+        }
+
+        async function decryptAup(fileObj) {
+            try {
+                const raw = new Uint8Array(await fileObj.arrayBuffer());
+                if (raw.length < 4) throw new Error("Too small");
+                const s = new BitReader(raw.subarray(4));
+                const h = new Uint8Array(16384);
+                let hi = 1; const out = [];
+                while (true) {
+                    while (true) {
+                        if (s.readBit() === 0) break;
+                        const b = s.readBits(8); out.push(b); h[hi] = b; hi = (hi + 1) & 0x3FFF;
+                    }
+                    const off = s.readBits(14); if (off === 0) break;
+                    const len = s.readBits(4) + 3;
+                    let rc = off;
+                    for (let i = 0; i < len; i++) {
+                        const b = h[rc]; out.push(b); h[hi] = b; hi = (hi + 1) & 0x3FFF; rc = (rc + 1) & 0x3FFF;
+                    }
+                }
+                return new Uint8Array(out);
+            } catch (e) { console.error(e); return null; }
+        }
+
+        // COMPRESSION
+        // TODO: Implement bit perfect compression encryption algorithm INTO .aup
+        async function handleCompressInput(e) {
+            e.target.value = '';
+        }
+
+        // --- DECODERS ---
+
+        function decodeIcon(data) {
+            const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
+            const w = v.getUint32(8, true);
+            const pd = data.subarray(16);
+            const h = (pd.length / 2) / w;
+            const px = new Uint8ClampedArray(w * h * 4);
+            const pv = new DataView(pd.buffer, pd.byteOffset, pd.byteLength);
+            for (let i = 0; i < w * h; i++) {
+                if ((i * 2 + 1) >= pd.length) break;
+                const p = pv.getUint16(i * 2, true);
+                const b = (p & 31) << 3;
+                const g = ((p >> 5) & 63) << 2;
+                const r = ((p >> 11) & 31) << 3;
+                const idx = i * 4;
+                px[idx] = r; px[idx + 1] = g; px[idx + 2] = b; px[idx + 3] = 255;
+            }
+            return { w: w, h: h, data: px };
+        }
+
+        function decodeTGA(data) {
+            const view = new DataView(data.buffer, data.byteOffset);
+            const idLen = data[0];
+            const colorMapType = data[1];
+            const imageType = data[2];
+            const width = view.getUint16(12, true);
+            const height = view.getUint16(14, true);
+            const pixelDepth = data[16];
+            const descriptor = data[17];
+
+            let offset = 18 + idLen;
+            if (colorMapType === 1) {
+                const colorMapLen = view.getUint16(7, true);
+                const colorMapEntrySize = data[9];
+                offset += colorMapLen * ((colorMapEntrySize + 7) >> 3);
+            }
+
+            const numPixels = width * height;
+            const pixelData = new Uint8ClampedArray(numPixels * 4);
+            let currentPixel = 0;
+            const bytesPerPixel = pixelDepth >> 3;
+
+            function readPixel() {
+                if (offset >= data.length) return [0, 0, 0, 0];
+                let r = 0, g = 0, b = 0, a = 255;
+                if (bytesPerPixel === 4) { b = data[offset++]; g = data[offset++]; r = data[offset++]; a = data[offset++]; }
+                else if (bytesPerPixel === 3) { b = data[offset++]; g = data[offset++]; r = data[offset++]; }
+                else if (bytesPerPixel === 2) {
+                    const v = data[offset] | (data[offset + 1] << 8); offset += 2;
+                    b = (v & 0x1F) << 3; g = ((v >> 5) & 0x1F) << 3; r = ((v >> 10) & 0x1F) << 3;
+                    a = (v & 0x8000) ? 255 : 0;
+                } else { const v = data[offset++]; r = g = b = v; }
+                return [r, g, b, a];
+            }
+
+            if (imageType === 2 || imageType === 3) {
+                for (let i = 0; i < numPixels; i++) {
+                    const [r, g, b, a] = readPixel();
+                    const idx = i * 4; pixelData[idx] = r; pixelData[idx + 1] = g; pixelData[idx + 2] = b; pixelData[idx + 3] = a;
+                }
+            }
+            else if (imageType === 10 || imageType === 11) {
+                while (currentPixel < numPixels && offset < data.length) {
+                    const header = data[offset++];
+                    const count = (header & 0x7F) + 1;
+                    const isRLEChunk = (header & 0x80) !== 0;
+                    if (isRLEChunk) {
+                        const [r, g, b, a] = readPixel();
+                        for (let i = 0; i < count; i++) {
+                            const idx = currentPixel * 4;
+                            pixelData[idx] = r; pixelData[idx + 1] = g; pixelData[idx + 2] = b; pixelData[idx + 3] = a;
+                            currentPixel++;
+                        }
+                    } else {
+                        for (let i = 0; i < count; i++) {
+                            const [r, g, b, a] = readPixel();
+                            const idx = currentPixel * 4;
+                            pixelData[idx] = r; pixelData[idx + 1] = g; pixelData[idx + 2] = b; pixelData[idx + 3] = a;
+                            currentPixel++;
+                        }
+                    }
+                }
+            }
+
+            if ((descriptor & 0x20) === 0) {
+                const stride = width * 4;
+                const tempRow = new Uint8ClampedArray(stride);
+                for (let y = 0; y < Math.floor(height / 2); y++) {
+                    const topOffset = y * stride;
+                    const botOffset = (height - 1 - y) * stride;
+                    tempRow.set(pixelData.subarray(topOffset, topOffset + stride));
+                    pixelData.set(pixelData.subarray(botOffset, botOffset + stride), topOffset);
+                    pixelData.set(tempRow, botOffset);
+                }
+            }
+            return { w: width, h: height, data: pixelData };
+        }
+
+        function decodeDDS(data) {
+            const view = new DataView(data.buffer, data.byteOffset);
+            const height = view.getUint32(12, true);
+            const width = view.getUint32(16, true);
+            const pfFlags = view.getUint32(80, true);
+            const fourCC = (pfFlags & 0x4) ? new TextDecoder().decode(data.subarray(84, 88)) : null;
+            const bitCount = view.getUint32(88, true);
+            let ptr = 128;
+            const pixels = new Uint8ClampedArray(width * height * 4);
+
+            if (!fourCC) {
+                const bpp = bitCount >> 3;
+                for (let i = 0; i < width * height; i++) {
+                    let r = 0, g = 0, b = 0, a = 255;
+                    if (bpp === 3) { b = data[ptr++]; g = data[ptr++]; r = data[ptr++]; }
+                    else if (bpp === 4) { b = data[ptr++]; g = data[ptr++]; r = data[ptr++]; a = data[ptr++]; }
+                    const idx = i * 4; pixels[idx] = r; pixels[idx + 1] = g; pixels[idx + 2] = b; pixels[idx + 3] = a;
+                }
+            } else {
+                const unpack565 = (p) => [((p >> 11) & 31) * 255 / 31, ((p >> 5) & 63) * 255 / 63, (p & 31) * 255 / 31];
+                for (let y = 0; y < height; y += 4) {
+                    for (let x = 0; x < width; x += 4) {
+                        if (ptr >= data.length) break;
+                        let alphas = new Uint8Array(16).fill(255);
+                        if (fourCC === 'DXT3') {
+                            for (let i = 0; i < 8; i++) { const b = data[ptr++]; alphas[2 * i] = (b & 15) * 17; alphas[2 * i + 1] = (b >> 4) * 17; }
+                        } else if (fourCC === 'DXT5') {
+                            const a0 = data[ptr++], a1 = data[ptr++];
+                            let bits = BigInt(0);
+                            for (let i = 0; i < 6; i++) bits |= BigInt(data[ptr++]) << BigInt(i * 8);
+                            const ap = [a0, a1, 0, 0, 0, 0, 0, 0];
+                            if (a0 > a1) { for (let i = 0; i < 6; i++) ap[2 + i] = ((6 - i) * a0 + (1 + i) * a1) / 7; }
+                            else { for (let i = 0; i < 4; i++) ap[2 + i] = ((4 - i) * a0 + (1 + i) * a1) / 5; ap[6] = 0; ap[7] = 255; }
+                            for (let i = 0; i < 16; i++) { alphas[i] = ap[Number(bits & 7n)]; bits >>= 3n; }
+                        }
+
+                        const c0 = data[ptr] | (data[ptr + 1] << 8); ptr += 2;
+                        const c1 = data[ptr] | (data[ptr + 1] << 8); ptr += 2;
+                        const rgb0 = unpack565(c0), rgb1 = unpack565(c1);
+                        const lookup = data[ptr] | (data[ptr + 1] << 8) | (data[ptr + 2] << 16) | (data[ptr + 3] << 24); ptr += 4;
+                        const pal = [[...rgb0, 255], [...rgb1, 255], [0, 0, 0, 255], [0, 0, 0, 255]];
+                        if (c0 > c1 || fourCC !== 'DXT1') {
+                            pal[2] = [(2 * rgb0[0] + rgb1[0]) / 3, (2 * rgb0[1] + rgb1[1]) / 3, (2 * rgb0[2] + rgb1[2]) / 3, 255];
+                            pal[3] = [(rgb0[0] + 2 * rgb1[0]) / 3, (rgb0[1] + 2 * rgb1[1]) / 3, (rgb0[2] + 2 * rgb1[2]) / 3, 255];
+                        } else {
+                            pal[2] = [(rgb0[0] + rgb1[0]) / 2, (rgb0[1] + rgb1[1]) / 2, (rgb0[2] + rgb1[2]) / 2, 255];
+                            pal[3] = [0, 0, 0, 0];
+                        }
+
+                        for (let py = 0; py < 4; py++) {
+                            for (let px = 0; px < 4; px++) {
+                                if (y + py >= height || x + px >= width) continue;
+                                const code = (lookup >> (2 * (py * 4 + px))) & 3;
+                                const col = pal[code];
+                                const idx = ((y + py) * width + (x + px)) * 4;
+                                pixels[idx] = col[0]; pixels[idx + 1] = col[1]; pixels[idx + 2] = col[2];
+                                pixels[idx + 3] = (fourCC === 'DXT1') ? col[3] : alphas[py * 4 + px];
+                            }
+                        }
+                    }
+                }
+            }
+            return { w: width, h: height, data: pixels };
+        }
+
+        // --- RENDERER ---
+        const canvas = document.getElementById('image-viewer');
+        const ctx = canvas.getContext('2d');
+        const cCont = document.getElementById('canvas-container');
+
+        function renderRawPixels(decoded) {
+            imgState = { w: decoded.w, h: decoded.h, rawPixels: decoded.data, isBitmap: false, bitmap: null, scale: 1, panX: 0, panY: 0, isDragging: false };
+            if (decoded.h < 16384 && decoded.w < 16384) {
+                const idata = new ImageData(decoded.data, decoded.w, decoded.h);
+                createImageBitmap(idata).then(bmp => { imgState.isBitmap = true; imgState.bitmap = bmp; fitImage(); });
+            } else fitImage();
+        }
+        function renderImageBitmap(img) {
+            createImageBitmap(img).then(bmp => { imgState = { w: bmp.width, h: bmp.height, rawPixels: null, isBitmap: true, bitmap: bmp, scale: 1, panX: 0, panY: 0, isDragging: false }; fitImage(); });
+        }
+
+        function fitImage() {
+            cCont.style.display = 'block';
+            const frame = document.getElementById('preview-frame');
+            const cw = frame.clientWidth; const ch = frame.clientHeight;
+            const r = Math.min(cw / imgState.w, ch / imgState.h);
+            imgState.scale = r * 0.95;
+            imgState.panX = 0; imgState.panY = 0;
+            draw();
+        }
+
+        function draw() {
+            const frame = document.getElementById('preview-frame');
+            canvas.width = frame.clientWidth; canvas.height = frame.clientHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const dw = imgState.w * imgState.scale;
+            const dh = imgState.h * imgState.scale;
+            const dx = (canvas.width - dw) / 2 + imgState.panX;
+            const dy = (canvas.height - dh) / 2 + imgState.panY;
+            ctx.imageSmoothingEnabled = false;
+
+            if (imgState.isBitmap) {
+                try { ctx.drawImage(imgState.bitmap, dx, dy, dw, dh); } catch (e) { }
+            } else if (imgState.rawPixels) {
+                const sy_start = Math.max(0, Math.floor(-dy / imgState.scale));
+                const sy_end = Math.min(imgState.h, Math.ceil((-dy + canvas.height) / imgState.scale));
+
+                if (sy_start < sy_end) {
+                    const sx_start = Math.max(0, Math.floor(-dx / imgState.scale));
+                    const sx_end = Math.min(imgState.w, Math.ceil((-dx + canvas.width) / imgState.scale));
+
+                    if (sx_start < sx_end) {
+                        const sW = sx_end - sx_start;
+                        const sH = sy_end - sy_start;
+                        const CHUNK_SIZE = 4096;
+
+                        for (let cy = 0; cy < sH; cy += CHUNK_SIZE) {
+                            const chunkHeight = Math.min(CHUNK_SIZE, sH - cy);
+                            const currentSy = sy_start + cy;
+                            const subData = new Uint8ClampedArray(sW * chunkHeight * 4);
+                            for (let y = 0; y < chunkHeight; y++) {
+                                const srcOff = ((currentSy + y) * imgState.w + sx_start) * 4;
+                                subData.set(imgState.rawPixels.subarray(srcOff, srcOff + sW * 4), y * sW * 4);
+                            }
+                            const tC = document.createElement('canvas');
+                            tC.width = sW; tC.height = chunkHeight;
+                            tC.getContext('2d').putImageData(new ImageData(subData, sW, chunkHeight), 0, 0);
+                            const drawY = dy + currentSy * imgState.scale;
+                            ctx.drawImage(tC, dx + sx_start * imgState.scale, drawY, sW * imgState.scale, chunkHeight * imgState.scale);
+                        }
+                    }
+                }
+            }
+        }
+
+        cCont.addEventListener('wheel', e => { e.preventDefault(); imgState.scale *= (e.deltaY > 0 ? 0.9 : 1.1); draw(); });
+        cCont.addEventListener('mousedown', e => { imgState.isDragging = true; imgState.startX = e.clientX; imgState.startY = e.clientY; });
+        window.addEventListener('mouseup', () => imgState.isDragging = false);
+        window.addEventListener('mousemove', e => {
+            if (imgState.isDragging) { imgState.panX += e.clientX - imgState.startX; imgState.panY += e.clientY - imgState.startY; imgState.startX = e.clientX; imgState.startY = e.clientY; draw(); }
+        });
+
+        // --- APP LOGIC ---
+
+        document.getElementById('folder-input').addEventListener('change', loadFiles);
+        document.getElementById('compress-input').addEventListener('change', handleCompressInput);
+        document.getElementById('search-input').addEventListener('input', renderList);
+        document.getElementById('modal-overlay').addEventListener('click', closeModal);
+
+        document.addEventListener('copy', e => {
+            if (document.activeElement && document.activeElement.id === 'text-viewer') return;
+
+            if (selectedIndices.size > 0) {
+                const lines = [];
+                const sorted = Array.from(selectedIndices).sort((a, b) => a - b);
+                const visible = getVisibleFiles();
+
+                for (let idx of sorted) {
+                    if (visible[idx]) {
+                        const f = visible[idx];
+                        lines.push(`${f.name} ${f.size} bytes`);
+                    }
+                }
+                if (lines.length) {
+                    e.clipboardData.setData('text/plain', lines.join('\n'));
+                    e.preventDefault();
+                }
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const visible = getVisibleFiles();
+                if (visible.length === 0) return;
+
+                let nextIndex;
+                if (lastSelectedIndex === -1 && selectedIndices.size > 0) {
+                    lastSelectedIndex = Math.min(...selectedIndices);
+                }
+
+                if (e.key === 'ArrowUp') {
+                    nextIndex = lastSelectedIndex > 0 ? lastSelectedIndex - 1 : 0;
+                } else {
+                    nextIndex = lastSelectedIndex < visible.length - 1 ? lastSelectedIndex + 1 : visible.length - 1;
+                }
+
+                selectedIndices.clear();
+                selectedIndices.add(nextIndex);
+                lastSelectedIndex = nextIndex;
+
+                const meta = visible[nextIndex];
+                renderList();
+                const tbody = document.getElementById('file-list-body');
+                if (tbody.children[nextIndex]) tbody.children[nextIndex].scrollIntoView({ block: 'nearest' });
+                selectFile(meta);
+            }
+        });
+
+        function loadFiles(e) {
+            const files = e.target.files; if (!files.length) return;
+            document.getElementById('status-bar').textContent = "Scanning...";
+            allFiles = []; activeFilters.clear(); selectedIndices.clear(); lastSelectedIndex = -1;
+            const ts = new Set();
+            for (let f of files) {
+                if (f.name.toLowerCase().endsWith('.aup')) {
+                    const rn = f.name.slice(0, -4);
+                    let ext = rn.includes('.') ? rn.split('.').pop().toLowerCase() : "no_ext";
+                    const fullPath = (f.webkitRelativePath || f.name).slice(0, -4);
+                    ts.add(ext);
+                    allFiles.push({ fileObj: f, name: rn, relPath: fullPath, ext: ext, size: f.size });
+                }
+            }
+            const c = document.getElementById('filter-container'); c.innerHTML = '';
+            Array.from(ts).sort().forEach(t => {
+                activeFilters.add(t);
+                const d = document.createElement('div'); d.className = 'filter-item';
+                d.innerHTML = `<label><input type="checkbox" checked onchange="toggleFilter('${t}',this.checked)"> ${t.toUpperCase()}</label>`;
+                c.appendChild(d);
+            });
+            renderList();
+            document.getElementById('status-bar').textContent = `Loaded ${allFiles.length} files.`;
+        }
+
+        function getVisibleFiles() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const visible = allFiles.filter(f => activeFilters.has(f.ext) && (!search || f.name.toLowerCase().includes(search)));
+            visible.sort((a, b) => {
+                let vA = a[sortConfig.col], vB = b[sortConfig.col];
+                if (sortConfig.col === 'size') return (vA - vB) * sortConfig.dir;
+                return vA.toString().localeCompare(vB.toString()) * sortConfig.dir;
+            });
+            return visible;
+        }
+
+        function toggleFilter(t, c) { c ? activeFilters.add(t) : activeFilters.delete(t); renderList(); }
+        function filterSet(m) {
+            document.querySelectorAll('.filter-item input').forEach(cb => {
+                const t = cb.parentElement.innerText.trim().toLowerCase();
+                if (m === 0) cb.checked = false; else if (m === 1) cb.checked = true; else cb.checked = !cb.checked;
+                toggleFilter(t, cb.checked);
+            });
+        }
+
+        function renderList() {
+            const tbody = document.getElementById('file-list-body'); tbody.innerHTML = '';
+            const visible = getVisibleFiles();
+            ['name', 'type', 'size'].forEach(c => document.getElementById(`sort-arrow-${c}`).textContent = '');
+            document.getElementById(`sort-arrow-${sortConfig.col}`).textContent = sortConfig.dir === 1 ? ' ↑' : ' ↓';
+            const frag = document.createDocumentFragment();
+            visible.slice(0, 2000).forEach((f, idx) => {
+                const tr = document.createElement('tr');
+                if (selectedIndices.has(idx)) tr.classList.add('selected');
+                tr.onclick = (e) => handleRowClick(e, f, idx, tr);
+                tr.innerHTML = `<td>${f.name}</td><td>${f.ext}</td><td>${f.size.toLocaleString()}</td>`;
+                frag.appendChild(tr);
+            });
+            tbody.appendChild(frag);
+            document.getElementById('file-count').textContent = `Files: ${visible.length} / ${allFiles.length}`;
+        }
+
+        function handleRowClick(e, meta, idx, tr) {
+            if (e.ctrlKey) {
+                if (selectedIndices.has(idx)) selectedIndices.delete(idx);
+                else selectedIndices.add(idx);
+                lastSelectedIndex = idx;
+            } else if (e.shiftKey && lastSelectedIndex !== -1) {
+                const start = Math.min(lastSelectedIndex, idx);
+                const end = Math.max(lastSelectedIndex, idx);
+                selectedIndices.clear();
+                for (let i = start; i <= end; i++) selectedIndices.add(i);
+            } else {
+                selectedIndices.clear();
+                selectedIndices.add(idx);
+                lastSelectedIndex = idx;
+                if (selectedIndices.size === 1) selectFile(meta);
+            }
+            renderList();
+        }
+
+        function sortTable(col) {
+            if (sortConfig.col === col) sortConfig.dir *= -1; else { sortConfig.col = col; sortConfig.dir = 1; }
+            selectedIndices.clear(); renderList();
+        }
+
+        async function selectFile(meta) {
+            currentFileMeta = meta;
+            document.getElementById('status-bar').textContent = `Decrypting ${meta.name}...`;
+            const data = await decryptAup(meta.fileObj);
+            if (!data) { document.getElementById('status-bar').textContent = "Error"; return; }
+            currentDecryptedData = data;
+            document.getElementById('btn-export-single').disabled = false;
+            document.getElementById('status-bar').textContent = "Loaded.";
+            refreshPreview();
+        }
+
+        function refreshPreview() {
+            if (!currentDecryptedData) return;
+            const data = currentDecryptedData, ext = currentFileMeta.ext;
+            const override = document.getElementById('treat-as').value;
+            let showAs = "HexAscii", dimsStr = "";
+
+            if (override !== "Auto") showAs = override;
+            else if (['txt', 'xml', 'ini', 'lua', 'cfg', 'log'].includes(ext)) showAs = "Text";
+            else if (['png', 'jpg', 'jpeg', 'tga', 'bmp', 'dds', 'icon'].includes(ext)) showAs = "Image";
+            else if (ext === 'wav') showAs = "Audio";
+
+            document.getElementById('text-viewer').style.display = 'none';
+            document.getElementById('canvas-container').style.display = 'none';
+            document.getElementById('btn-play-audio').style.display = 'none';
+            document.getElementById('lbl-autoplay').style.display = 'none';
+
+            if (showAs === "Text") {
+                const t = document.getElementById('text-viewer'); t.style.display = 'block';
+                t.value = new TextDecoder('gb18030').decode(data);
+            }
+            else if (showAs === "HexAscii") {
+                const t = document.getElementById('text-viewer'); t.style.display = 'block';
+                t.value = formatHex(data, 0);
+            }
+            else if (showAs === "HexOnly") {
+                const t = document.getElementById('text-viewer'); t.style.display = 'block';
+                t.value = formatHex(data, 1);
+            }
+            else if (showAs === "AsciiOnly") {
+                const t = document.getElementById('text-viewer'); t.style.display = 'block';
+                t.value = formatHex(data, 2);
+            }
+            else if (showAs === "Image") {
+                try {
+                    if (ext === 'tga') { const r = decodeTGA(data); dimsStr = `| ${r.w}x${r.h}`; renderRawPixels(r); }
+                    else if (ext === 'dds') { const r = decodeDDS(data); dimsStr = `| ${r.w}x${r.h}`; renderRawPixels(r); }
+                    else if (ext === 'icon') {
+                        const r = decodeIcon(data);
+                        dimsStr = `| ${r.w}x${r.h}`; renderRawPixels(r);
+                    } else {
+                        const b = new Blob([data]); const u = URL.createObjectURL(b);
+                        const i = new Image(); i.onload = () => { dimsStr = `| ${i.width}x${i.height}`; renderImageBitmap(i); URL.revokeObjectURL(u); };
+                        i.src = u;
+                    }
+                } catch (e) {
+                    const t = document.getElementById('text-viewer'); t.style.display = 'block'; t.value = "Image Error\n" + formatHex(data, 0);
+                }
+            } else if (showAs === "Audio") {
+                document.getElementById('btn-play-audio').style.display = 'inline-block';
+                document.getElementById('lbl-autoplay').style.display = 'flex';
+                const t = document.getElementById('text-viewer'); t.style.display = 'block'; t.value = `Audio (${data.length} bytes)`;
+                if (document.getElementById('check-autoplay').checked) playAudio();
+            }
+            document.getElementById('file-info').textContent = `${currentFileMeta.name} | ${data.length} bytes ${dimsStr}`;
+        }
+
+        function formatHex(data, mode) {
+            const limit = 16384;
+
+            if (mode === 1 || mode === 2) {
+                let chunks = [];
+                for (let i = 0; i < Math.min(data.length, limit); i++) {
+                    const b = data[i];
+                    if (mode === 1) chunks.push(b.toString(16).padStart(2, '0').toUpperCase());
+                    else chunks.push((b >= 32 && b < 127) ? String.fromCharCode(b) : ".");
+                }
+                let result = (mode === 1) ? chunks.join(" ") : chunks.join("");
+                if (data.length > limit) result += "\n... Truncated";
+                return result;
+            }
+
+            let lines = [];
+            for (let i = 0; i < Math.min(data.length, limit); i += 16) {
+                const ch = data.subarray(i, i + 16);
+                let h = [], a = "";
+                for (let j = 0; j < 16; j++) {
+                    if (j < ch.length) {
+                        let b = ch[j];
+                        h.push(b.toString(16).padStart(2, '0').toUpperCase());
+                        a += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+                    } else h.push("  ");
+                    if (j === 7) h.push("");
+                }
+                const offset = i.toString(16).padStart(8, '0').toUpperCase();
+                lines.push(`${offset}: ${h.join(" ")} | ${a}`);
+            }
+            if (data.length > limit) lines.push("... Truncated");
+            return lines.join("\n");
+        }
+
+        function playAudio() { const b = new Blob([currentDecryptedData], { type: 'audio/wav' }); const a = document.getElementById('audio-player'); a.src = URL.createObjectURL(b); a.play(); }
+
+        function exportSingle() {
+            saveData(currentDecryptedData, currentFileMeta.name);
+        }
+        function saveData(d, n) { const a = document.createElement('a'); a.href = URL.createObjectURL(n instanceof Blob ? n : new Blob([d])); a.download = n; a.click(); }
+
+        async function exportFiltered() { await doExport(true); }
+        async function exportAll() { await doExport(false); }
+        async function doExport(filt) {
+            if (!window.JSZip) return alert("JSZip missing");
+            const list = filt ? getVisibleFiles() : allFiles;
+            if (!list.length) return alert("Nothing to export");
+
+            if (list.length === 1) {
+                document.getElementById('status-bar').textContent = `Exporting ${list[0].name}...`;
+                const d = await decryptAup(list[0].fileObj);
+                if (d) {
+                    saveData(d, list[0].name);
+                    document.getElementById('status-bar').textContent = "Done.";
+                } else {
+                    document.getElementById('status-bar').textContent = "Error decrypting.";
+                }
+                return;
+            }
+
+            const zip = new JSZip();
+            document.getElementById('status-bar').textContent = `Exporting ${list.length} files...`;
+            for (let i = 0; i < list.length; i += 20) {
+                await Promise.all(list.slice(i, i + 20).map(async f => {
+                    const d = await decryptAup(f.fileObj);
+                    if (d) {
+                        // Use stored relative path for folder preservation
+                        zip.file(f.relPath, d);
+                    }
+                }));
+                await new Promise(r => setTimeout(r, 0));
+            }
+            saveData(await zip.generateAsync({ type: "blob" }), "export.zip");
+            document.getElementById('status-bar').textContent = "Done.";
+        }
+
+        function showAbout() { document.getElementById('modal-overlay').style.display = 'flex'; }
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+        function switchTab(id) {
+            document.querySelectorAll('.tab-content').forEach(e => e.style.display = 'none');
+            document.getElementById('tab-' + id).style.display = 'block';
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+
+</html>
